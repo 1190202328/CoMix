@@ -11,6 +11,7 @@ import pandas as pd
 from timeit import default_timer as timer
 from multiprocessing import Process, Pool
 
+ffmpeg_path = '/home/luban/apps/ffmpeg/ffmpeg-6.0-amd64-static/ffmpeg'
 
 from PIL import Image
 import imageio
@@ -194,7 +195,7 @@ def median_calc(median_array):
 def make_a_video(output_dir, output_format, name):
     if not output_dir.endswith("/"):
         output_dir += "/"
-    os.system('ffmpeg -r 24 -i ' + output_dir + '%d.' + output_format + ' -c:v libx264 ' + output_dir + name)
+    os.system(f'{ffmpeg_path} -r 24 -i ' + output_dir + '%d.' + output_format + ' -c:v libx264 ' + output_dir + name)
 
 
 if __name__ == '__main__':
