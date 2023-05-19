@@ -1,30 +1,19 @@
 # CoMix Framework training code
-import os
-import torch
-import torch.optim as optim
-from torch import nn
-import torch.nn.functional as F
-import math
-import numpy as np
-import params
-from utils import *
-from models.graph_model import *
-import time
-import datetime
 import copy
-from torch.autograd import Function
+import time
 
-from core.losses import SupConLoss 
+import torch.optim as optim
+
+from core.losses import SupConLoss
 from i3d.pytorch_i3d import InceptionI3d
+from utils import *
 
-import random
-
-import warnings
 warnings.filterwarnings("ignore")
 
 
 def print_line():
-    print('-'*100)
+    print('-' * 100)
+
 
 class CrossEntropyLabelSmooth(nn.Module):
     def __init__(self, num_classes, epsilon=0.1, use_gpu=True, size_average=True):
@@ -49,30 +38,30 @@ class CrossEntropyLabelSmooth(nn.Module):
         return loss
 
 
-def simclr_loss_unlab(output_fast,output_slow,normalize=True):
+def simclr_loss_unlab(output_fast, output_slow, normalize=True):
     criterion = torch.nn.CrossEntropyLoss()
     logits, labels = info_nce_loss(torch.cat((output_fast, output_slow), dim=0))
     return criterion(logits, labels)
+
 
 def simclr_loss(output_fast, output_slow, criterion, labels=None, normalize=True):
     output_fast = torch.unsqueeze(output_fast, dim=1)
     output_slow = torch.unsqueeze(output_slow, dim=1)
     output_new = torch.cat((output_fast, output_slow), dim=1)
-    #logits, labels = info_nce_loss(torch.cat((output_fast, output_slow), dim=0))
+    # logits, labels = info_nce_loss(torch.cat((output_fast, output_slow), dim=0))
     return criterion(output_new, labels)
-
 
 
 #####...Train CoMix...#####
 def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_eval=None, num_iterations=10000):
     # Trainer function
-    
+
     graph_model.train()
     graph_model = nn.DataParallel(graph_model)
 
     i3d_online = InceptionI3d(400, in_channels=3)
     i3d_online.load_state_dict(torch.load("./models/rgb_imagenet.pt"))
-    
+
     i3d_online.train()
     i3d_online.cuda()
     i3d_online = nn.DataParallel(i3d_online)
@@ -80,23 +69,23 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
     random.seed(params.manual_seed)
 
     criterion = nn.CrossEntropyLoss().cuda()
-    temperature=0.5
+    temperature = 0.5
     simclr_loss_criterion = SupConLoss(temperature=temperature)
 
-    optimizer = optim.SGD([ {"params": i3d_online.parameters(), "lr": params.learning_rate * 0.1},
-                            {"params": graph_model.parameters(), "lr": params.learning_rate}],
-                            lr=params.learning_rate,
-                            weight_decay=0.0000001,
-                            momentum=params.momentum )
+    optimizer = optim.SGD([{"params": i3d_online.parameters(), "lr": params.learning_rate * 0.1},
+                           {"params": graph_model.parameters(), "lr": params.learning_rate}],
+                          lr=params.learning_rate,
+                          weight_decay=0.0000001,
+                          momentum=params.momentum)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(num_iterations))
 
-    len_source_data_loader = len(src_data_loader) - 1 
+    len_source_data_loader = len(src_data_loader) - 1
     len_target_data_loader = len(tgt_data_loader) - 1
 
     print_line()
-    print('len_source_data_loader = '+ str(len_source_data_loader))
-    print('len_target_data_loader = '+ str(len_target_data_loader))
+    print('len_source_data_loader = ' + str(len_source_data_loader))
+    print('len_target_data_loader = ' + str(len_target_data_loader))
 
     best_accuracy_yet = 0.0
     best_itrn = 0
@@ -111,20 +100,21 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
     running_lr = params.learning_rate
     epoch_number = 0
     start_iter = 0
-    if params.dataset_name=="UCF-HMDB":
+    if params.dataset_name == "UCF-HMDB":
         num_classes = 12
-    elif params.dataset_name=="Jester":
+    elif params.dataset_name == "Jester":
         num_classes = 7
-    elif params.dataset_name=="Epic-Kitchens":
+    elif params.dataset_name == "Epic-Kitchens":
         num_classes = 8
 
     if not os.path.exists(params.model_root):
         os.makedirs(params.model_root)
 
-    if params.warmstart_models=='True': #changes needed for i3d online version
-        if params.warmstart_graph=='None' or params.warmstart_i3d=='None':
+    if params.warmstart_models == 'True':  # changes needed for i3d online version
+        if params.warmstart_graph == 'None' or params.warmstart_i3d == 'None':
             print('Starting Training for Warmstarting...')
-            graph_model, i3d_online = warmstart_models(graph_model, i3d_online, src_data_loader, None, data_loader_eval, params.num_iter_warmstart)            
+            graph_model, i3d_online = warmstart_models(graph_model, i3d_online, src_data_loader, None, data_loader_eval,
+                                                       params.num_iter_warmstart)
             print('Warmstarted successfully...')
         else:
             print('Warmstarting...')
@@ -132,7 +122,7 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
             i3d_online.load_state_dict(torch.load(params.warmstart_i3d))
             print('Warmstarted successfully...')
 
-    if params.auto_resume=='True':
+    if params.auto_resume == 'True':
         checkpoint_path = os.path.join(params.model_root, "Current-Checkpoint.pt")
         if os.path.exists(checkpoint_path):
             checkpoint = torch.load(checkpoint_path)
@@ -149,10 +139,10 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
     for itrn in range(start_iter, num_iterations):
         print("\rRunning Iteration: {}/{}".format(itrn, num_iterations), end='', flush=True)
-        if itrn%100 == 0:
-            print('Itrn: (T)', itrn+1, 'LR:', scheduler.get_lr())
+        if itrn % 100 == 0:
+            print('Itrn: (T)', itrn + 1, 'LR:', scheduler.get_lr())
 
-        if itrn==start_iter:
+        if itrn == start_iter:
             iter_source = iter(src_data_loader)
             iter_target = iter(tgt_data_loader)
 
@@ -160,17 +150,26 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
             iter_source = iter(src_data_loader)
             epoch_number = epoch_number + 1
 
-        if itrn % len_target_data_loader == 0:            
+        if itrn % len_target_data_loader == 0:
             iter_target = iter(tgt_data_loader)
 
         SRC, labels = iter_source.next()
+
+        # for i in range(len(SRC)):
+        #     print(f'SRC[{i}].shape = {SRC[i].shape}')
+        # print(f'labels.shape = {labels.shape}')
+        # # Running Iteration: 0/10000Itrn: (T) 1 LR: [0.001, 0.01]
+        # # SRC[0].shape = torch.Size([1, 16, 3, 8, 224, 224])
+        # # SRC[1].shape = torch.Size([1, 3, 1, 224, 224])
+        # # labels.shape = torch.Size([1])
+
         feat_src = SRC[0]
         bg_src = SRC[1]
         TGT, _ = iter_target.next()
         feat_tgt = TGT[0]
         bg_tgt = TGT[1]
 
-        if params.random_aux=='True':
+        if params.random_aux == 'True':
             random_decider = random.uniform(0, 1)
             if random_decider < 0.33:
                 num_slow_nodes = 4
@@ -181,19 +180,16 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         else:
             num_slow_nodes = 8
 
-
         mix_ratio = np.random.uniform(0, params.max_gamma)
 
-
-        src_mix_tgt_bg = (feat_src*(1-mix_ratio)) + (bg_tgt.unsqueeze(1)*mix_ratio)
-        tgt_mix_src_bg = (feat_tgt*(1-mix_ratio)) + (bg_src.unsqueeze(1)*mix_ratio)
+        src_mix_tgt_bg = (feat_src * (1 - mix_ratio)) + (bg_tgt.unsqueeze(1) * mix_ratio)
+        tgt_mix_src_bg = (feat_tgt * (1 - mix_ratio)) + (bg_src.unsqueeze(1) * mix_ratio)
 
         src_mix_tgt_bg = src_mix_tgt_bg.float()
         src_mix_tgt_bg = make_variable(src_mix_tgt_bg, gpu_id=params.src_gpu_id)
-        
+
         tgt_mix_src_bg = tgt_mix_src_bg.float()
         tgt_mix_src_bg = make_variable(tgt_mix_src_bg, gpu_id=params.tgt_gpu_id)
-
 
         feat_src = make_variable(feat_src, gpu_id=params.src_gpu_id)
         feat_tgt = make_variable(feat_tgt, gpu_id=params.tgt_gpu_id)
@@ -203,40 +199,39 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
         bs, num_nodes, num_c, chunk_size, H, W = feat_src.shape
 
-        feat_src = feat_src.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+        feat_src = feat_src.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_feat_src = i3d_online(feat_src)
-        feat_tgt = feat_tgt.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+        feat_tgt = feat_tgt.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_feat_tgt = i3d_online(feat_tgt)
 
-
-        src_mix_tgt_bg = src_mix_tgt_bg.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+        src_mix_tgt_bg = src_mix_tgt_bg.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_src_mix_tgt_bg = i3d_online(src_mix_tgt_bg)
-        tgt_mix_src_bg = tgt_mix_src_bg.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+        tgt_mix_src_bg = tgt_mix_src_bg.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_tgt_mix_src_bg = i3d_online(tgt_mix_src_bg)
 
-        #------Slow range---------------
+        # ------Slow range---------------
         fastRange = np.arange(num_nodes)
         splitRange = np.array_split(fastRange, num_slow_nodes)
         slowIds = [np.random.choice(a) for a in splitRange]
-        #------Reshaping part-------------
+        # ------Reshaping part-------------
         # required shape for graph is (bs, num_classes, 1024)
         i3d_feat_src = i3d_feat_src.squeeze(3).squeeze(3)
         i3d_feat_src = i3d_feat_src.reshape(bs, num_nodes, -1)
-        i3d_feat_src_slow = i3d_feat_src[:,slowIds,:]
+        i3d_feat_src_slow = i3d_feat_src[:, slowIds, :]
 
         i3d_feat_tgt = i3d_feat_tgt.squeeze(3).squeeze(3)
         i3d_feat_tgt = i3d_feat_tgt.reshape(bs, num_nodes, -1)
-        i3d_feat_tgt_slow = i3d_feat_tgt[:,slowIds,:]
+        i3d_feat_tgt_slow = i3d_feat_tgt[:, slowIds, :]
 
         # bs_2 = bs // 2
         i3d_src_mix_tgt_bg = i3d_src_mix_tgt_bg.squeeze(3).squeeze(3)
         i3d_src_mix_tgt_bg = i3d_src_mix_tgt_bg.reshape(bs, num_nodes, -1)
-        i3d_src_mix_tgt_bg_slow = i3d_src_mix_tgt_bg[:,slowIds,:]
+        i3d_src_mix_tgt_bg_slow = i3d_src_mix_tgt_bg[:, slowIds, :]
 
         i3d_tgt_mix_src_bg = i3d_tgt_mix_src_bg.squeeze(3).squeeze(3)
         i3d_tgt_mix_src_bg = i3d_tgt_mix_src_bg.reshape(bs, num_nodes, -1)
-        i3d_tgt_mix_src_bg_slow = i3d_tgt_mix_src_bg[:,slowIds,:]
-        #---------------------------------
+        i3d_tgt_mix_src_bg_slow = i3d_tgt_mix_src_bg[:, slowIds, :]
+        # ---------------------------------
         preds_src = graph_model(i3d_feat_src)
         preds_src_slow = graph_model(i3d_feat_src_slow)
         preds_tgt = graph_model(i3d_feat_tgt)
@@ -248,9 +243,8 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         preds_tgt_mix = graph_model(i3d_tgt_mix_src_bg)
         preds_tgt_mix_slow = graph_model(i3d_tgt_mix_src_bg_slow)
 
-        cls_loss = CrossEntropyLabelSmooth(num_classes=num_classes, epsilon=0.1, size_average=False)(preds_src, labels).mean()
-        
-
+        cls_loss = CrossEntropyLabelSmooth(num_classes=num_classes, epsilon=0.1, size_average=False)(preds_src,
+                                                                                                     labels).mean()
 
         target_logits_fused = (preds_tgt.data + preds_tgt_slow.data) / 2
         target_logits_softmax = torch.softmax(target_logits_fused, dim=-1)
@@ -260,46 +254,51 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
         pseudo_cls_loss = (F.cross_entropy(preds_tgt, target_pseudo_labels, reduction='none') * pseudo_mask).mean()
 
-
         virtual_label = torch.arange(0, bs)
         virtual_label = torch.cat((virtual_label, virtual_label), dim=0)
         virtual_label = make_variable(virtual_label)
 
-        sim_clr_loss_src = simclr_loss(torch.softmax(preds_src, dim=-1), torch.softmax(preds_src_slow, dim=-1),  simclr_loss_criterion, labels)
-        if pseudo_mask is None : 
+        sim_clr_loss_src = simclr_loss(torch.softmax(preds_src, dim=-1), torch.softmax(preds_src_slow, dim=-1),
+                                       simclr_loss_criterion, labels)
+        if pseudo_mask is None:
             sim_clr_loss_tgt = simclr_loss(preds_tgt, preds_tgt_slow, simclr_loss_criterion)
-        else :
+        else:
             pseudo_mask_new = pseudo_mask > 0
-            preds_tgt_masked = torch.masked_select(preds_tgt, pseudo_mask_new.unsqueeze(dim=1).repeat(1, preds_tgt.shape[1]))
-            preds_tgt_slow_masked = torch.masked_select(preds_tgt_slow, pseudo_mask_new.unsqueeze(dim=1).repeat(1, preds_tgt_slow.shape[1]))
+            preds_tgt_masked = torch.masked_select(preds_tgt,
+                                                   pseudo_mask_new.unsqueeze(dim=1).repeat(1, preds_tgt.shape[1]))
+            preds_tgt_slow_masked = torch.masked_select(preds_tgt_slow, pseudo_mask_new.unsqueeze(dim=1).repeat(1,
+                                                                                                                preds_tgt_slow.shape[
+                                                                                                                    1]))
             target_pseudo_labels_masked = torch.masked_select(target_pseudo_labels, pseudo_mask_new)
             preds_tgt_masked = preds_tgt_masked.reshape(-1, num_classes)
             preds_tgt_slow_masked = preds_tgt_slow_masked.reshape(-1, num_classes)
 
-            if preds_tgt_slow_masked.shape[0] > 0 :
-                sim_clr_loss_tgt = simclr_loss(torch.softmax(preds_tgt_masked, dim=-1), torch.softmax(preds_tgt_slow_masked, dim=-1), simclr_loss_criterion, target_pseudo_labels_masked)
-            else :
-                sim_clr_loss_tgt = torch.tensor(0.0).cuda() 
-         
-        
+            if preds_tgt_slow_masked.shape[0] > 0:
+                sim_clr_loss_tgt = simclr_loss(torch.softmax(preds_tgt_masked, dim=-1),
+                                               torch.softmax(preds_tgt_slow_masked, dim=-1), simclr_loss_criterion,
+                                               target_pseudo_labels_masked)
+            else:
+                sim_clr_loss_tgt = torch.tensor(0.0).cuda()
 
         src_fast = torch.cat((preds_src, preds_src_mix), dim=0)
         src_slow = torch.cat((preds_src_slow, preds_src_mix_slow), dim=0)
-        simclr_mod_src = simclr_loss(torch.softmax(src_fast, dim=-1), torch.softmax(src_slow, dim=-1), simclr_loss_criterion, virtual_label)
+        simclr_mod_src = simclr_loss(torch.softmax(src_fast, dim=-1), torch.softmax(src_slow, dim=-1),
+                                     simclr_loss_criterion, virtual_label)
 
         tgt_fast = torch.cat((preds_tgt, preds_tgt_mix), dim=0)
         tgt_slow = torch.cat((preds_tgt_slow, preds_tgt_mix_slow), dim=0)
-        simclr_mod_tgt = simclr_loss(torch.softmax(tgt_fast, dim=-1), torch.softmax(tgt_slow, dim=-1), simclr_loss_criterion, virtual_label)
+        simclr_mod_tgt = simclr_loss(torch.softmax(tgt_fast, dim=-1), torch.softmax(tgt_slow, dim=-1),
+                                     simclr_loss_criterion, virtual_label)
 
         simclr_mod_mix = simclr_mod_src + simclr_mod_tgt
-        
+
         pseudo_cls_loss = torch.tensor(0.0).cuda()
         loss = cls_loss + (params.lambda_bgm * (simclr_mod_mix)) + (params.lambda_tpl * (sim_clr_loss_tgt))
-        
+
         loss.backward()
-     
+
         optimizer.step()
-        
+
         scheduler.step()
 
         # Log updates.
@@ -311,7 +310,7 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
                           cls_loss.item(),
                           simclr_mod_mix.item(),
                           sim_clr_loss_tgt.item(),
-                          loss.item()                          
+                          loss.item()
                           ))
             print_line()
             print_line()
@@ -336,12 +335,12 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
                 bs, num_nodes, num_c, chunk_size, H, W = feats_val.shape
 
-                feats_val = feats_val.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+                feats_val = feats_val.reshape(bs * num_nodes, num_c, chunk_size, H, W)
                 i3d_feats_eval = i3d_online(feats_val)
-                #------reshaping part--------------
+                # ------reshaping part--------------
                 i3d_feats_eval = i3d_feats_eval.squeeze(3).squeeze(3)
                 i3d_feats_eval = i3d_feats_eval.reshape(bs, num_nodes, -1)
-                #----------------------------------
+                # ----------------------------------
                 preds_val = graph_model(i3d_feats_eval)
 
                 loss_val += criterion(preds_val, labels_val).data.item()
@@ -359,17 +358,17 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
             checkpoint_path_current = os.path.join(params.model_root, "Current-Checkpoint.pt")
             torch.save({
-                        'iter':itrn+1,
-                        'epoch_number':epoch_number,
-                        'graph':graph_model.state_dict(),
-                        'i3d':i3d_online.state_dict(),
-                        'optimizer':optimizer.state_dict(),
-                        'scheduler':scheduler.state_dict(),
-                        'best_accuracy_yet':best_accuracy_yet,
-                        'best_itrn':best_itrn
-                        },checkpoint_path_current)
+                'iter': itrn + 1,
+                'epoch_number': epoch_number,
+                'graph': graph_model.state_dict(),
+                'i3d': i3d_online.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict(),
+                'best_accuracy_yet': best_accuracy_yet,
+                'best_itrn': best_itrn
+            }, checkpoint_path_current)
 
-            if(best_accuracy_yet <= avg_acc_val):
+            if (best_accuracy_yet <= avg_acc_val):
                 best_accuracy_yet = avg_acc_val
                 best_model_wts = copy.deepcopy(graph_model.state_dict())
                 best_i3d_model_wts = copy.deepcopy(i3d_online.state_dict())
@@ -380,15 +379,15 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
                 best_itrn = itrn + 1
                 checkpoint_path_best = os.path.join(params.model_root, "Best-Checkpoint.pt")
                 torch.save({
-                        'iter':itrn+1,
-                        'epoch_number':epoch_number,
-                        'graph':graph_model.state_dict(),
-                        'i3d':i3d_online.state_dict(),
-                        'optimizer':optimizer.state_dict(),
-                        'scheduler':scheduler.state_dict(),
-                        'best_accuracy_yet':best_accuracy_yet,
-                        'best_itrn':best_itrn
-                        },checkpoint_path_best)
+                    'iter': itrn + 1,
+                    'epoch_number': epoch_number,
+                    'graph': graph_model.state_dict(),
+                    'i3d': i3d_online.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'scheduler': scheduler.state_dict(),
+                    'best_accuracy_yet': best_accuracy_yet,
+                    'best_itrn': best_itrn
+                }, checkpoint_path_best)
 
             print('best_acc_yet: ', best_accuracy_yet, ' ( in itrn:', best_itrn, ')...')
             graph_model.train()
@@ -412,24 +411,24 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
     return graph_model
 
 
-
-def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=None, data_loader_eval=None, num_iterations=10000):
+def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=None, data_loader_eval=None,
+                     num_iterations=10000):
     # Trainer function
-    
-    optimizer = optim.SGD([ {"params": i3d_online.parameters(), "lr": params.learning_rate_ws * 0.1},
-                            {"params": graph_model.parameters(), "lr": params.learning_rate_ws}],
-                            lr=params.learning_rate,
-                            weight_decay=0.0000001,
-                            momentum=params.momentum )
+
+    optimizer = optim.SGD([{"params": i3d_online.parameters(), "lr": params.learning_rate_ws * 0.1},
+                           {"params": graph_model.parameters(), "lr": params.learning_rate_ws}],
+                          lr=params.learning_rate,
+                          weight_decay=0.0000001,
+                          momentum=params.momentum)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(num_iterations))
 
     criterion = nn.CrossEntropyLoss().cuda()
 
-    len_source_data_loader = len(src_data_loader) - 1 
+    len_source_data_loader = len(src_data_loader) - 1
 
     print_line()
-    print('len_source_data_loader = '+ str(len_source_data_loader))
+    print('len_source_data_loader = ' + str(len_source_data_loader))
 
     best_accuracy_yet = 0.0
     best_itrn = 0
@@ -444,23 +443,22 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
     running_lr = params.learning_rate
     epoch_number = 0
     start_iter = 0
-    if params.dataset_name=="UCF-HMDB":
+    if params.dataset_name == "UCF-HMDB":
         num_classes = 12
-    elif params.dataset_name=="Jester":
+    elif params.dataset_name == "Jester":
         num_classes = 7
-    elif params.dataset_name=="Epic-Kitchens":
+    elif params.dataset_name == "Epic-Kitchens":
         num_classes = 8
 
     if not os.path.exists(params.model_root):
         os.makedirs(params.model_root)
 
-
     for itrn in range(start_iter, num_iterations):
         print("\rRunning Iteration (source-only) : {}/{}".format(itrn, num_iterations), end='', flush=True)
-        if itrn%100 == 0:
-            print('Itrn: (T)', itrn+1, 'LR:', scheduler.get_lr())
+        if itrn % 100 == 0:
+            print('Itrn: (T)', itrn + 1, 'LR:', scheduler.get_lr())
 
-        if itrn==start_iter:
+        if itrn == start_iter:
             iter_source = iter(src_data_loader)
 
         if itrn % len_source_data_loader == 0:
@@ -477,7 +475,7 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
 
         bs, num_nodes, num_c, chunk_size, H, W = feat_src.shape
 
-        feat_src = feat_src.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+        feat_src = feat_src.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_feat_src = i3d_online(feat_src)
 
         i3d_feat_src = i3d_feat_src.squeeze(3).squeeze(3)
@@ -485,14 +483,15 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
 
         preds_src = graph_model(i3d_feat_src)
 
-        cls_loss = CrossEntropyLabelSmooth(num_classes=num_classes, epsilon=0.1, size_average=False)(preds_src, labels).mean()
-        
+        cls_loss = CrossEntropyLabelSmooth(num_classes=num_classes, epsilon=0.1, size_average=False)(preds_src,
+                                                                                                     labels).mean()
+
         loss = cls_loss
-        
+
         loss.backward()
-     
+
         optimizer.step()
-        
+
         scheduler.step()
 
         # Log updates.
@@ -526,12 +525,12 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
 
                 bs, num_nodes, num_c, chunk_size, H, W = feats_val.shape
 
-                feats_val = feats_val.reshape(bs*num_nodes, num_c, chunk_size, H, W)
+                feats_val = feats_val.reshape(bs * num_nodes, num_c, chunk_size, H, W)
                 i3d_feats_eval = i3d_online(feats_val)
-                #------reshaping part--------------
+                # ------reshaping part--------------
                 i3d_feats_eval = i3d_feats_eval.squeeze(3).squeeze(3)
                 i3d_feats_eval = i3d_feats_eval.reshape(bs, num_nodes, -1)
-                #----------------------------------
+                # ----------------------------------
                 preds_val = graph_model(i3d_feats_eval)
 
                 loss_val += criterion(preds_val, labels_val).data.item()
@@ -547,7 +546,7 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
             avg_loss_val = loss_val / len(data_loader_eval)
             avg_acc_val = float(acc_val.cpu().numpy()) / len(data_loader_eval.dataset)
 
-            if(best_accuracy_yet <= avg_acc_val):
+            if (best_accuracy_yet <= avg_acc_val):
                 best_accuracy_yet = avg_acc_val
                 best_model_wts = copy.deepcopy(graph_model.state_dict())
                 best_i3d_model_wts = copy.deepcopy(i3d_online.state_dict())

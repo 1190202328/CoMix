@@ -1,11 +1,9 @@
 # Main script for CoMix.
-import params
-from core import train_comix
-from models import *
-from utils import *
-from dataset import *
 import argparse
-import os
+
+from core import train_comix
+from dataset import *
+from utils import *
 
 parser = argparse.ArgumentParser(description='All arguments for the program.')
 
