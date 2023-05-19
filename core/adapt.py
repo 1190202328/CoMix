@@ -159,8 +159,8 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         #     print(f'SRC[{i}].shape = {SRC[i].shape}')
         # print(f'labels.shape = {labels.shape}')
         # # Running Iteration: 0/10000Itrn: (T) 1 LR: [0.001, 0.01]
-        # # SRC[0].shape = torch.Size([1, 16, 3, 8, 224, 224])
-        # # SRC[1].shape = torch.Size([1, 3, 1, 224, 224])
+        # # SRC[0].shape = torch.Size([1, 16, 3, 8, 224, 224])  feat_src    [B, num_nodes【多少个片段】, C, chunk_size【每个片段多少帧】, H, W]
+        # # SRC[1].shape = torch.Size([1, 3, 1, 224, 224])      bg_src      [B, C, 1【一帧背景】, H, W]
         # # labels.shape = torch.Size([1])
 
         feat_src = SRC[0]
@@ -169,6 +169,7 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         feat_tgt = TGT[0]
         bg_tgt = TGT[1]
 
+        # 进行num_clips的随机选择
         if params.random_aux == 'True':
             random_decider = random.uniform(0, 1)
             if random_decider < 0.33:
@@ -179,7 +180,8 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
                 num_slow_nodes = 12
         else:
             num_slow_nodes = 8
-
+        # 1. 混合背景和源视频
+        # mix的系数
         mix_ratio = np.random.uniform(0, params.max_gamma)
 
         src_mix_tgt_bg = (feat_src * (1 - mix_ratio)) + (bg_tgt.unsqueeze(1) * mix_ratio)
@@ -195,20 +197,43 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         feat_tgt = make_variable(feat_tgt, gpu_id=params.tgt_gpu_id)
         labels = make_variable(labels)
 
+        # print(f'feat_src.shape = {feat_src.shape}')
+        # print(f'feat_tgt.shape = {feat_tgt.shape}')
+        # print(f'labels.shape = {labels.shape}')
+        # # feat_src.shape = torch.Size([1, 16, 3, 8, 224, 224])    # [B, num_nodes, C, chunk_size, H, W]
+        # # feat_tgt.shape = torch.Size([1, 16, 3, 8, 224, 224])
+        # # labels.shape = torch.Size([1])
+
+        # 2. 对没有进行混合的视频进行i3d的forward
+
         optimizer.zero_grad()
 
         bs, num_nodes, num_c, chunk_size, H, W = feat_src.shape
 
         feat_src = feat_src.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_feat_src = i3d_online(feat_src)
+
+        # print(f'feat_src.shape = {feat_src.shape}')
+        # print(f'i3d_feat_src.shape = {i3d_feat_src.shape}')
+        # # feat_src.shape = torch.Size([16, 3, 8, 224, 224])     [bs * num_nodes, num_c, chunk_size, H, W]
+        # # i3d_feat_src.shape = torch.Size([16, 1024, 1, 1, 1])  [bs * num_nodes, C, 1, 1, 1]
+
         feat_tgt = feat_tgt.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_feat_tgt = i3d_online(feat_tgt)
 
+        # 3. 对混合视频进行i3d的forward
         src_mix_tgt_bg = src_mix_tgt_bg.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_src_mix_tgt_bg = i3d_online(src_mix_tgt_bg)
+
+        # print(f'src_mix_tgt_bg.shape = {src_mix_tgt_bg.shape}')
+        # print(f'i3d_src_mix_tgt_bg.shape = {i3d_src_mix_tgt_bg.shape}')
+        # # src_mix_tgt_bg.shape = torch.Size([16, 3, 8, 224, 224])       [bs * num_nodes, num_c, chunk_size, H, W]
+        # # i3d_src_mix_tgt_bg.shape = torch.Size([16, 1024, 1, 1, 1])    [bs * num_nodes, C, 1, 1, 1]
+
         tgt_mix_src_bg = tgt_mix_src_bg.reshape(bs * num_nodes, num_c, chunk_size, H, W)
         i3d_tgt_mix_src_bg = i3d_online(tgt_mix_src_bg)
 
+        # 4. 进行slow的graph的forward
         # ------Slow range---------------
         fastRange = np.arange(num_nodes)
         splitRange = np.array_split(fastRange, num_slow_nodes)
@@ -218,6 +243,11 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         i3d_feat_src = i3d_feat_src.squeeze(3).squeeze(3)
         i3d_feat_src = i3d_feat_src.reshape(bs, num_nodes, -1)
         i3d_feat_src_slow = i3d_feat_src[:, slowIds, :]
+
+        # print(f'i3d_feat_src.shape={i3d_feat_src.shape}')
+        # print(f'i3d_feat_src_slow.shape={i3d_feat_src_slow.shape}')
+        # # i3d_feat_src.shape=torch.Size([1, 16, 1024])        [B, bs * num_nodes, C]
+        # # i3d_feat_src_slow.shape=torch.Size([1, 4, 1024])    [B, num_slow_nodes, C]
 
         i3d_feat_tgt = i3d_feat_tgt.squeeze(3).squeeze(3)
         i3d_feat_tgt = i3d_feat_tgt.reshape(bs, num_nodes, -1)
@@ -232,17 +262,27 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         i3d_tgt_mix_src_bg = i3d_tgt_mix_src_bg.reshape(bs, num_nodes, -1)
         i3d_tgt_mix_src_bg_slow = i3d_tgt_mix_src_bg[:, slowIds, :]
         # ---------------------------------
+        # 4.1 进行[src]的slow的graph的forward
         preds_src = graph_model(i3d_feat_src)
         preds_src_slow = graph_model(i3d_feat_src_slow)
+
+        # print(f'preds_src.shape = {preds_src.shape}')
+        # print(f'preds_src_slow.shape = {preds_src_slow.shape}')
+        # # preds_src.shape = torch.Size([1, 12])       [B, num_class]
+        # # preds_src_slow.shape = torch.Size([1, 12])  [B, num_class]
+
+        # 4.2 进行[tgt]的slow的graph的forward
         preds_tgt = graph_model(i3d_feat_tgt)
         preds_tgt_slow = graph_model(i3d_feat_tgt_slow)
-
+        # 4.3 进行[mix_src]的slow的graph的forward
         preds_src_mix = graph_model(i3d_src_mix_tgt_bg)
         preds_src_mix_slow = graph_model(i3d_src_mix_tgt_bg_slow)
-
+        # 4.4 进行[mix_tgt]的slow的graph的forward
         preds_tgt_mix = graph_model(i3d_tgt_mix_src_bg)
         preds_tgt_mix_slow = graph_model(i3d_tgt_mix_src_bg_slow)
 
+        # 5. 计算loss
+        # 5.1 task loss
         cls_loss = CrossEntropyLabelSmooth(num_classes=num_classes, epsilon=0.1, size_average=False)(preds_src,
                                                                                                      labels).mean()
 
@@ -252,12 +292,14 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         max_probs, target_pseudo_labels = torch.max(target_logits_softmax, dim=-1)
         pseudo_mask = max_probs.ge(params.pseudo_threshold).float()
 
+        # 5.2 计算fusion的假标签
         pseudo_cls_loss = (F.cross_entropy(preds_tgt, target_pseudo_labels, reduction='none') * pseudo_mask).mean()
 
         virtual_label = torch.arange(0, bs)
         virtual_label = torch.cat((virtual_label, virtual_label), dim=0)
         virtual_label = make_variable(virtual_label)
 
+        # 5.3 计算simclr_loss
         sim_clr_loss_src = simclr_loss(torch.softmax(preds_src, dim=-1), torch.softmax(preds_src_slow, dim=-1),
                                        simclr_loss_criterion, labels)
         if pseudo_mask is None:
@@ -293,6 +335,7 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
         simclr_mod_mix = simclr_mod_src + simclr_mod_tgt
 
         pseudo_cls_loss = torch.tensor(0.0).cuda()
+        # 5.4 总loss
         loss = cls_loss + (params.lambda_bgm * (simclr_mod_mix)) + (params.lambda_tpl * (sim_clr_loss_tgt))
 
         loss.backward()

@@ -77,9 +77,9 @@ if __name__ == '__main__':
             print('从此加载数据集')
             source_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_train_hmdb_ucf_mini.csv',
                                                   dataset_name='ucf', transform=None, base_dir=params.base_dir)
-            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf.csv',
+            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf_mini.csv',
                                                   dataset_name='hmdb', transform=None, base_dir=params.base_dir)
-            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_val_hmdb_ucf.csv',
+            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_val_hmdb_ucf_mini.csv',
                                                        dataset_name='hmdb', transform=None, base_dir=params.base_dir,
                                                        is_test=True)
         else:
