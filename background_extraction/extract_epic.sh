@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#python extract_bg_tmf_epickitchens.py -i ./../video_splits/D1_train.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1
+python extract_bg_tmf_epickitchens.py -i ./../video_splits/D2_train.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1
+python extract_bg_tmf_epickitchens.py -i ./../video_splits/D3_train.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1
+python extract_bg_tmf_epickitchens.py -i ./../video_splits/D1_test.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1
+python extract_bg_tmf_epickitchens.py -i ./../video_splits/D2_test.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1
+python extract_bg_tmf_epickitchens.py -i ./../video_splits/D3_test.pkl --input_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_videos --output_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens/epic_kitchens_BG -r 224 -offset 1

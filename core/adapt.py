@@ -3,12 +3,15 @@ import copy
 import time
 
 import torch.optim as optim
+from tqdm import tqdm
 
 from core.losses import SupConLoss
 from i3d.pytorch_i3d import InceptionI3d
 from utils import *
 
 warnings.filterwarnings("ignore")
+
+log_rate = 10
 
 
 def print_line():
@@ -137,8 +140,12 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
             best_accuracy_yet = checkpoint['best_accuracy_yet']
             best_itrn = checkpoint['best_itrn']
 
+    pbar = tqdm(total=num_iterations // log_rate)
+
     for itrn in range(start_iter, num_iterations):
-        print("\rRunning Iteration: {}/{}".format(itrn, num_iterations), end='', flush=True)
+        if itrn % log_rate == 0:
+            pbar.update(1)
+            print("Running Iteration: {}/{}".format(itrn, num_iterations))
         if itrn % 100 == 0:
             print('Itrn: (T)', itrn + 1, 'LR:', scheduler.get_lr())
 
@@ -368,7 +375,7 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
             i3d_online.eval()
             for step_val, (feats_val, labels_val) in enumerate(data_loader_eval):
                 if step_val % 10 == 0:
-                    print("\rEvaluating batch {}/{}".format(step_val, len(data_loader_eval)), end='', flush=True)
+                    print("Evaluating batch {}/{}".format(step_val, len(data_loader_eval)))
 
                 feats_val = feats_val[0]
                 feats_val = make_variable(
@@ -443,6 +450,8 @@ def train_comix(graph_model, src_data_loader, tgt_data_loader=None, data_loader_
 
         del feat_src, labels, preds_src, preds_src_slow, i3d_feat_src, feat_tgt, preds_tgt, preds_tgt_slow, i3d_feat_tgt
 
+    pbar.close()
+
     # Load the best models and save them.
     print('Loading the best model weights...')
     graph_model.load_state_dict(best_model_wts)
@@ -496,8 +505,12 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
     if not os.path.exists(params.model_root):
         os.makedirs(params.model_root)
 
+    pbar = tqdm(total=num_iterations // log_rate)
+
     for itrn in range(start_iter, num_iterations):
-        print("\rRunning Iteration (source-only) : {}/{}".format(itrn, num_iterations), end='', flush=True)
+        if itrn % log_rate == 0:
+            pbar.update(1)
+            print("Running Iteration (source-only) : {}/{}".format(itrn, num_iterations))
         if itrn % 100 == 0:
             print('Itrn: (T)', itrn + 1, 'LR:', scheduler.get_lr())
 
@@ -558,7 +571,7 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
             i3d_online.eval()
             for step_val, (feats_val, labels_val) in enumerate(data_loader_eval):
                 if step_val % 10 == 0:
-                    print("\rEvaluating batch {}/{}".format(step_val, len(data_loader_eval)), end='', flush=True)
+                    print("Evaluating batch {}/{}".format(step_val, len(data_loader_eval)))
 
                 feats_val = feats_val[0]
                 feats_val = make_variable(
@@ -609,6 +622,8 @@ def warmstart_models(graph_model, i3d_online, src_data_loader, tgt_data_loader=N
             print_line()
 
         del feat_src, labels, preds_src, i3d_feat_src
+
+    pbar.close()
 
     # Load the best models and save them.
     print('Loading the best model weights...')

@@ -1,20 +1,19 @@
 from __future__ import print_function
 
+from PIL import ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import argparse
-import numpy
-import os
 import glob
-import sys
-import numpy as np
-import pandas as pd
+import os
 import pickle
-
+import sys
 from timeit import default_timer as timer
-from multiprocessing import Process, Pool
 
-
-from PIL import Image
 import imageio
+import numpy
+import numpy as np
+from PIL import Image
 
 IMAGE_EXTENSIONS = ["*.tiff", "*.tif", "*.jpeg", "*.png", "*.jpg", "*.dng"]
 MOVIE_EXTENSIONS = ["*.mp4", "*.mov"]
@@ -23,7 +22,7 @@ MOVIE_EXTENSIONS = ["*.mp4", "*.mov"]
 def get_frame_data(input_data, frame_number):
     """ Gets the frame with the specified index """
     if isinstance(input_data, list):
-        #print(frame_number)
+        # print(frame_number)
         return Image.open(input_data[frame_number])
     return input_data.get_data(frame_number)
 
@@ -31,7 +30,7 @@ def get_frame_data(input_data, frame_number):
 def get_number_of_frames(input_data):
     if isinstance(input_data, list):
         return len(input_data)
-    return round(input_data.get_meta_data()['fps'] * input_data.get_meta_data()['duration']) -1
+    return round(input_data.get_meta_data()['fps'] * input_data.get_meta_data()['duration']) - 1
 
 
 def make_a_glob(root_dir, start_ind, end_ind):
@@ -62,7 +61,7 @@ def make_a_glob(root_dir, start_ind, end_ind):
             input_data = glob.glob(root_dir + ext)
             if len(input_data) == 0:
                 input_data = glob.glob(root_dir + ext.upper())
-            if ext == IMAGE_EXTENSIONS[(len(IMAGE_EXTENSIONS)-1)] and len(input_data) == 0:
+            if ext == IMAGE_EXTENSIONS[(len(IMAGE_EXTENSIONS) - 1)] and len(input_data) == 0:
                 raise IOError("No images found in directory: %s" % root_dir)
         else:
             break
@@ -108,7 +107,7 @@ def make_output_dir(output_dir, input_dir):
         output_dir += "/"
 
     output_path = output_dir
-    if not(os.path.exists(output_path) and os.path.isdir(output_path)):
+    if not (os.path.exists(output_path) and os.path.isdir(output_path)):
         os.makedirs(output_path)
     frame_path = output_path
 
@@ -143,7 +142,8 @@ def progress(count, total, suffix=''):
     sys.stdout.flush()
 
 
-def temporal_median_filter_multi2(input_data, output_dir, limit_frames, output_format, frame_offset=8, simultaneous_frames=8, resize=None, input_dir=None):
+def temporal_median_filter_multi2(input_data, output_dir, limit_frames, output_format, frame_offset=8,
+                                  simultaneous_frames=8, resize=None, input_dir=None):
     start2 = timer()
     frame_path = make_output_dir(output_dir, input_dir)
     width, height = do_sizing(input_data)
@@ -153,25 +153,25 @@ def temporal_median_filter_multi2(input_data, output_dir, limit_frames, output_f
     splitRange = np.array_split(allRange, frame_offset)
 
     slice_list = []
-    if resize : 
+    if resize:
         filtered_array = numpy.zeros((len(splitRange), resize, resize, 3), numpy.uint8)
-    else :
+    else:
         filtered_array = numpy.zeros((len(splitRange), height, width, 3), numpy.uint8)
 
-    for chunks in splitRange : 
-        if resize : 
+    for chunks in splitRange:
+        if resize:
             median_array = numpy.zeros((len(chunks), resize, resize, 3), numpy.uint8)
-        else :
+        else:
             median_array = numpy.zeros((len(chunks), height, width, 3), numpy.uint8)
         ind = 0
-        for frame_number in chunks :
+        for frame_number in chunks:
             next_im = get_frame_data(input_data, frame_number)
-            if resize : 
+            if resize:
                 next_im = next_im.resize((resize, resize))
             next_array = numpy.array(next_im, numpy.uint8)
             del next_im
             median_array[ind, :, :, :] = next_array
-            ind += 1   
+            ind += 1
         slice_list.append(median_array)
     results = [median_calc(slice_list[0])]
     print("Result calculated")
@@ -189,8 +189,8 @@ def temporal_median_filter_multi2(input_data, output_dir, limit_frames, output_f
 
 def median_calc(median_array):
     return numpy.median(median_array[:, :, :, 0], axis=0), \
-           numpy.median(median_array[:, :, :, 1], axis=0), \
-           numpy.median(median_array[:, :, :, 2], axis=0)
+        numpy.median(median_array[:, :, :, 1], axis=0), \
+        numpy.median(median_array[:, :, :, 2], axis=0)
 
 
 def make_a_video(output_dir, output_format, name):
@@ -216,14 +216,13 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--frame_limit", default=-1, type=int,
                         help="Limit number of frames to specified int (optional)")
     parser.add_argument("-format", "--output_format", default="JPEG", help="Output image format. (optional)")
-    parser.add_argument("-simul", "--simultaneous_frames",type=int, default="8",
+    parser.add_argument("-simul", "--simultaneous_frames", type=int, default="8",
                         help="Number of frames to process on each iteration (faster performance using more cores)")
     parser.add_argument("-v", "--video", action="store_true", default=False, dest="video",
                         help="Optional: Encode h.264 video of resulting frames. Defaults to False.")
 
-
     args = parser.parse_args()
-    
+
     if not args.input_dir.endswith("/"):
         args.input_dir += "/"
     if not args.output_dir.endswith("/"):
@@ -235,16 +234,17 @@ if __name__ == '__main__':
     if args.input_file[:-4].endswith("train"):
         base_dir += "train/"
         print("Training pkl")
-    else :
+    else:
         base_dir += "test/"
         print("Testing pkl")
-    
+
     if args.input_file.split("/")[-1].startswith("D1"):
         base_dir += "D1/"
     if args.input_file.split("/")[-1].startswith("D2"):
         base_dir += "D2/"
     if args.input_file.split("/")[-1].startswith("D3"):
         base_dir += "D3/"
+    print(args.input_file)
 
     with open(args.input_file, 'rb') as f:
         dataset_pd = pickle.load(f)
@@ -258,8 +258,13 @@ if __name__ == '__main__':
 
     for idx in range(len(video_id)):
         input_dir = base_dir + video_id[idx]
+        output_dir = input_dir.replace("epic_kitchens_videos", "epic_kitchens_BG") + "_" + str(uid[idx])
+        if os.path.exists(output_dir):
+            print(f'output_dir already exists : [{output_dir}]')
+            continue
         input_glob = make_a_glob(input_dir, start_frame[idx], stop_frame[idx])
-        output_dir = args.output_dir + str(uid[idx]) 
+        # output_dir = args.output_dir + video_id[idx] + '_' + str(uid[idx])
+        print(f'input_dir:{input_dir}')
 
         print("------------------------------------------------------------------")
         print("Output path : ", output_dir)
@@ -271,5 +276,5 @@ if __name__ == '__main__':
             args.output_format,
             args.frame_offset,
             args.simultaneous_frames,
-            args.resize, 
+            args.resize,
         )

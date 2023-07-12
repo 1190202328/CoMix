@@ -1,18 +1,19 @@
 # Main script for CoMix.
-import params
-from core import train_comix
-from models import *
-from utils import *
-from dataset import *
 import argparse
-import os
+
+from core import train_comix
+from dataset import *
+from utils import *
 
 parser = argparse.ArgumentParser(description='All arguments for the program.')
 
 parser.add_argument('--batch_size', type=int, default=8, help='Batch size for training.')
-parser.add_argument('--dataset_name', type=str, default='UCF-HMDB', help='Name of the dataset from \'UCF-HMDB\', \'Jester\', and \'Epic-Kitchens\'.')
-parser.add_argument('--src_dataset', type=str, default='UCF', help='Name of the SOURCE DOMAIN e.g. UCF, Epic-Kitchens-D1, etc.')
-parser.add_argument('--tgt_dataset', type=str, default='HMDB', help='Name of the TARGET DOMAIN e.g. HMDB, Epic-Kitchens-D2, etc.')
+parser.add_argument('--dataset_name', type=str, default='UCF-HMDB',
+                    help='Name of the dataset from \'UCF-HMDB\', \'Jester\', and \'Epic-Kitchens\'.')
+parser.add_argument('--src_dataset', type=str, default='UCF',
+                    help='Name of the SOURCE DOMAIN e.g. UCF, Epic-Kitchens-D1, etc.')
+parser.add_argument('--tgt_dataset', type=str, default='HMDB',
+                    help='Name of the TARGET DOMAIN e.g. HMDB, Epic-Kitchens-D2, etc.')
 parser.add_argument('--model_root', type=str, default='./checkpoints', help='Directory to save the models.')
 parser.add_argument('--learning_rate', type=float, default=0.01, help='Learning rate for the framework.')
 parser.add_argument('--learning_rate_ws', type=float, default=0.01, help='Learning rate for the Warmstart.')
@@ -71,42 +72,64 @@ if __name__ == '__main__':
 
     print(args)
 
-    if params.dataset_name=="UCF-HMDB":
-        if params.src_dataset=="UCF" and params.tgt_dataset=="HMDB":
-            source_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_train_hmdb_ucf.csv', dataset_name='ucf', transform=None, base_dir = params.base_dir)
-            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf.csv', dataset_name='hmdb', transform=None, base_dir = params.base_dir)
-            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_val_hmdb_ucf.csv', dataset_name='hmdb', transform=None, base_dir = params.base_dir, is_test=True)
-        elif params.src_dataset=="HMDB" and params.tgt_dataset=="UCF":
-            source_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf.csv', dataset_name='hmdb', transform=None, base_dir = params.base_dir)
-            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_train_hmdb_ucf.csv', dataset_name='ucf', transform=None, base_dir = params.base_dir)
-            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_val_hmdb_ucf.csv', dataset_name='ucf', transform=None, base_dir = params.base_dir, is_test=True)
+    if params.dataset_name == "UCF-HMDB":
+        if params.src_dataset == "UCF" and params.tgt_dataset == "HMDB":
+            source_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_train_hmdb_ucf.csv',
+                                                  dataset_name='ucf', transform=None, base_dir=params.base_dir)
+            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf.csv',
+                                                  dataset_name='hmdb', transform=None, base_dir=params.base_dir)
+            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_val_hmdb_ucf.csv',
+                                                       dataset_name='hmdb', transform=None, base_dir=params.base_dir,
+                                                       is_test=True)
+        elif params.src_dataset == "HMDB" and params.tgt_dataset == "UCF":
+            source_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/hmdb51_train_hmdb_ucf.csv',
+                                                  dataset_name='hmdb', transform=None, base_dir=params.base_dir)
+            target_dataset = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_train_hmdb_ucf.csv',
+                                                  dataset_name='ucf', transform=None, base_dir=params.base_dir)
+            target_dataset_eval = VideoDataset_UCFHMDB(csv_file='./video_splits/ucf101_val_hmdb_ucf.csv',
+                                                       dataset_name='ucf', transform=None, base_dir=params.base_dir,
+                                                       is_test=True)
 
-    elif params.dataset_name=="Jester":
-        source_dataset = VideoDataset_Jester(csv_file='./video_splits/jester_source_train.csv', base_dir = params.base_dir, transform=None)
-        target_dataset = VideoDataset_Jester(csv_file='./video_splits/jester_target_train.csv', base_dir = params.base_dir, transform=None)
-        target_dataset_eval = VideoDataset_Jester(csv_file='./video_splits/jester_source_val.csv', base_dir = params.base_dir, transform=None, is_test=True)
+    elif params.dataset_name == "Jester":
+        source_dataset = VideoDataset_Jester(csv_file='./video_splits/jester_source_train.csv',
+                                             base_dir=params.base_dir, transform=None)
+        target_dataset = VideoDataset_Jester(csv_file='./video_splits/jester_target_train.csv',
+                                             base_dir=params.base_dir, transform=None)
+        target_dataset_eval = VideoDataset_Jester(csv_file='./video_splits/jester_source_val.csv',
+                                                  base_dir=params.base_dir, transform=None, is_test=True)
 
-    elif params.dataset_name=="Epic-Kitchens":
-        if params.src_dataset=="D1":
-            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_train.pkl', transform=None, base_dir=params.base_dir)
-        elif params.src_dataset=="D2":
-            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_train.pkl', transform=None, base_dir=params.base_dir)
-        elif params.src_dataset=="D3":
-            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_train.pkl', transform=None, base_dir=params.base_dir)
-        if params.tgt_dataset=="D1":
-            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_train.pkl', transform=None, base_dir=params.base_dir)
-            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_test.pkl', transform=None, base_dir=params.base_dir, is_test=True)
-        elif params.tgt_dataset=="D2":
-            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_train.pkl', transform=None, base_dir=params.base_dir)
-            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_test.pkl', transform=None, base_dir=params.base_dir, is_test=True)
-        elif params.tgt_dataset=="D3":
-            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_train.pkl', transform=None, base_dir=params.base_dir)
-            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_test.pkl', transform=None, base_dir=params.base_dir, is_test=True)
+    elif params.dataset_name == "Epic-Kitchens":
+        if params.src_dataset == "D1":
+            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+        elif params.src_dataset == "D2":
+            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+        elif params.src_dataset == "D3":
+            source_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+        if params.tgt_dataset == "D1":
+            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D1_test.pkl', transform=None,
+                                                            base_dir=params.base_dir, is_test=True)
+        elif params.tgt_dataset == "D2":
+            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D2_test.pkl', transform=None,
+                                                            base_dir=params.base_dir, is_test=True)
+        elif params.tgt_dataset == "D3":
+            target_dataset = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_train.pkl', transform=None,
+                                                       base_dir=params.base_dir)
+            target_dataset_eval = VideoDataset_EpicKitchens(csv_file='./video_splits/D3_test.pkl', transform=None,
+                                                            base_dir=params.base_dir, is_test=True)
 
-
-    source_dataloader = DataLoader(source_dataset, batch_size=params.batch_size, shuffle=True, num_workers=params.num_segments)
-    target_dataloader = DataLoader(target_dataset, batch_size=params.batch_size, shuffle=True, num_workers=params.num_segments)
-    target_dataloader_eval = DataLoader(target_dataset_eval, batch_size=params.batch_size, shuffle=False, num_workers=params.num_segments)
+    source_dataloader = DataLoader(source_dataset, batch_size=params.batch_size, shuffle=True,
+                                   num_workers=params.num_segments)
+    target_dataloader = DataLoader(target_dataset, batch_size=params.batch_size, shuffle=True,
+                                   num_workers=params.num_segments)
+    target_dataloader_eval = DataLoader(target_dataset_eval, batch_size=params.batch_size, shuffle=False,
+                                        num_workers=params.num_segments)
 
     graph_model = Graph_Model(dataset_name=params.dataset_name)
     graph_model.cuda()
@@ -115,4 +138,5 @@ if __name__ == '__main__':
     print('TemporalGraph:')
     print(graph_model)
 
-    graph_model = train_comix(graph_model, source_dataloader, target_dataloader, target_dataloader_eval, num_iterations=params.num_iter_adapt)
+    graph_model = train_comix(graph_model, source_dataloader, target_dataloader, target_dataloader_eval,
+                              num_iterations=params.num_iter_adapt)
