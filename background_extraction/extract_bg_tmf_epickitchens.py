@@ -66,6 +66,7 @@ def make_a_glob(root_dir, start_ind, end_ind):
         else:
             break
     input_data.sort()
+    print(f'input_data_len: {len(input_data)}')
     print("First image is: " + input_data[start_ind])
     print("Number of frames found: ", end_ind - start_ind + 1)
     return input_data[start_ind:end_ind]
@@ -262,12 +263,12 @@ if __name__ == '__main__':
         if os.path.exists(output_dir):
             print(f'output_dir already exists : [{output_dir}]')
             continue
-        input_glob = make_a_glob(input_dir, start_frame[idx], stop_frame[idx])
-        # output_dir = args.output_dir + video_id[idx] + '_' + str(uid[idx])
-        print(f'input_dir:{input_dir}')
+        print(f'Input_dir:{input_dir}, start_frame:{start_frame[idx]}, end_frame:{stop_frame[idx]}')
 
         print("------------------------------------------------------------------")
         print("Output path : ", output_dir)
+        input_glob = make_a_glob(input_dir, start_frame[idx], stop_frame[idx])
+        # output_dir = args.output_dir + video_id[idx] + '_' + str(uid[idx])
 
         output_path = temporal_median_filter_multi2(
             input_glob,

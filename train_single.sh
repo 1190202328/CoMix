@@ -9,6 +9,6 @@ cd /nfs/ofs-902-1/object-detection/jiangjing/experiments/CoMix && CUDA_VISIBLE_D
   --src_dataset "$1" --tgt_dataset "$2" \
   --batch_size 8 --model_root "$3" \
   --save_in_steps 500 --log_in_steps 50 --eval_in_steps 50 --pseudo_threshold 0.7 \
-  --warmstart_models True --num_iter_warmstart 4000 --num_iter_adapt 10000 \
+  --warmstart_models True --num_iter_warmstart 1000 --num_iter_adapt 2500 \
   --learning_rate 0.01 --learning_rate_ws 0.01 --lambda_bgm 0.01 --lambda_tpl 0.01 \
   --base_dir /nfs/ofs-902-1/object-detection/jiangjing/datasets/epic_kitchens
